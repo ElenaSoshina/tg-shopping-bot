@@ -2,7 +2,7 @@ const { Telegraf } = require('telegraf');
 
 const TOKEN = '7601273394:AAH3sxGHfD_mUxpBGyaZIx9EraGWAeD8I60';
 const bot = new Telegraf(TOKEN);
-const webLink = 'https://creative-starlight-c66b84.netlify.app';
+const webLink = 'https://elenasoshina.github.io/tg-shopping/';
 
 
 
