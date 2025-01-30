@@ -1,0 +1,46 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: elenasoshina/tg-shopping-bot:latest
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build_and_push
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            docker pull elenasoshina/tg-shopping-bot:latest
+            docker stop myapp || true
+            docker rm myapp || true
+            docker run -d --name myapp -p 80:3000 elenasoshina/tg-shopping-bot:latest
