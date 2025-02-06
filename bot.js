@@ -4,16 +4,21 @@ const TOKEN = '7601273394:AAH3sxGHfD_mUxpBGyaZIx9EraGWAeD8I60';
 const bot = new Telegraf(TOKEN);
 const webLink = 'https://elenasoshina.github.io/tg-shopping/';
 
-
-
 // Start Command
 bot.start((ctx) => {
-    const username = ctx.from.username ? `@${ctx.from.username}` : ctx.from.first_name ? ctx.from.first_name : "Гость";
+    console.log('started');
+    const username = ctx.from.username
+        ? `@${ctx.from.username}`
+        : ctx.from.first_name
+            ? ctx.from.first_name
+            : 'Гость';
+
     const welcomeMessage = `🌟 Приветствуем ${username} в нашем гастрономическом райе Муйне! 🌟
     🐟 Нежный норвежский лосось — истинное удовольствие для гурманов.
     🥞 Сырники из домашнего творога — замороженные и готовые к употреблению.
     🍋 Освежающие лимоны — идеальный акцент для любого блюда.
     👇 Нажмите на кнопку ниже, чтобы открыть меню и сделать заказ. 👇`;
+
     ctx.reply(welcomeMessage, {
         reply_markup: {
             keyboard: [
@@ -27,32 +32,53 @@ bot.start((ctx) => {
 
 // Обработчик данных из WebApp
 bot.on('message', async (ctx) => {
+    console.log("[DEBUG] Сообщение получено от WebApp:", JSON.stringify(ctx.update, null, 2));
+
     if (ctx.update.message?.web_app_data) {
         try {
             const rawDataString = ctx.update.message.web_app_data.data;
+            console.log("[WEB APP DATA RECEIVED] Raw data string:", rawDataString);
+
             const rawData = JSON.parse(rawDataString);
+            console.log("[WEB APP DATA PARSED] Parsed rawData:", rawData);
+
             if (!rawData.items || !Array.isArray(rawData.items)) {
                 throw new Error('Invalid data: "items" must be an array.');
             }
 
-            console.log("Raw data received:", rawData);
+            // Пересчитываем каждую позицию, формируем красивую строку
+            let totalForAll = 0; // Для итоговой стоимости
 
             const items = rawData.items.map(item => {
-                console.log("Processing item:", item);
-                // Проверяем, содержит ли название товара слово "Лосось"
-                let title = item.title.includes('Лосось') ? `${item.title}` : item.title;
-                let quantityString = '';
-                if (title.includes('Лосось')) {
-                    quantityString = `${item.quantity} г`; // Для рыбы указываем в граммах
-                } else if (title.includes('Сырники')) {
-                    quantityString = `${item.quantity} шт`; // Для сырников в штуках
-                } else if (title.includes('Лимон')) {
-                    quantityString = `${item.quantity} уп`; // Для лимонов в упаковках
-                } else {
-                    quantityString = `${item.quantity} шт`; // Для других товаров по умолчанию в штуках
+                // Определяем единицу измерения и название
+                let displayTitle = item.title;
+                let quantityString = `${item.quantity} шт`; // по умолчанию
+
+                if (item.type === 'fish') {
+                    // Для рыбы: «Лосось <название>» и «г»
+                    displayTitle = `Лосось ${item.title}`;
+                    quantityString = `${item.quantity} г`;
+                } else if (item.type === 'cheese') {
+                    // Сырники в штуках
+                    quantityString = `${item.quantity} шт`;
+                } else if (item.type === 'lemon') {
+                    // Лимоны в упаковках
+                    quantityString = `${item.quantity} уп`;
                 }
 
-                const totalForItem = title.includes('Лосось') ? (Number(item.total) / 100).toFixed(2) : item.total;
+                // Считаем реальную стоимость, игнорируя item.total
+                const priceNum = Number(item.price) || 0; // цена за 1 шт / г / уп
+                const quantityNum = Number(item.quantity) || 0;
+                const itemTotalNum = priceNum * quantityNum;
+                totalForAll += itemTotalNum;
+
+                // Форматируем как «xxx,xxx.00»
+                const itemTotalStr = itemTotalNum.toLocaleString('ru-RU', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+
+                // Топпинги (если есть)
                 const toppings = item.toppings?.length
                     ? ` (Топпинги: ${item.toppings.map(topping => {
                         switch (topping) {
@@ -64,14 +90,20 @@ bot.on('message', async (ctx) => {
                     }).join(', ')})`
                     : '';
 
-                return `${title} - ${quantityString} - ${totalForItem} VND${toppings}`;
+                // Пример строки: «Лосось Нарезка - 300 г - 480 000,00 VND (Топпинги: …)»
+                return `${displayTitle} - ${quantityString} - ${itemTotalStr} VND${toppings}`;
             });
 
-            const totalPrice = rawData.totalPrice;
-            const finalTotalPrice = items.some(item => item.includes('Лосось')) ? (Number(totalPrice) / 100).toFixed(2) : totalPrice;
+            // Форматируем итоговую стоимость
+            const finalTotalPriceString = totalForAll.toLocaleString('ru-RU', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
 
-            const clientMessage = `🛒 *Ваш заказ:*\n\n${items.join('\n')}\n\n💳 *Итого:* ${finalTotalPrice} VND`;
+            // Сообщение пользователю
+            const clientMessage = `🛒 *Ваш заказ:*\n\n${items.join('\n')}\n\n💳 *Итого:* ${finalTotalPriceString} VND`;
             console.log("Sending message to user chat ID:", ctx.chat.id);
+
             await ctx.reply(clientMessage, {
                 parse_mode: 'Markdown',
                 reply_markup: {
@@ -83,11 +115,35 @@ bot.on('message', async (ctx) => {
                 }
             });
 
-            // Сообщение для администратора
-            const username = ctx.from.username ? `@${ctx.from.username}` : ctx.from.first_name ? ctx.from.first_name : "неизвестный пользователь";
-            const adminMessage = `👤 *Пользователь:* ${username}\n🛒 *Заказ:*\n\n${items.join('\n')}\n\n💳 *Итого:* ${finalTotalPrice} VND`;
+            // --- Сообщение для администратора ---
+            const username = ctx.from.username
+                ? `@${ctx.from.username}`
+                : ctx.from.first_name
+                    ? ctx.from.first_name
+                    : "неизвестный пользователь";
+
+            const nameFromForm = rawData.name || '—';   // Имя пользователя из формы
+            const phoneFromForm = rawData.phone || '—'; // Телефон из формы
+            const isDelivery = rawData.deliveryMethod === 'delivery';
+            const deliveryMethodText = isDelivery ? 'Доставка' : 'Самовывоз';
+            const addressFromForm = isDelivery && rawData.address ? rawData.address : '';
+
+            // Формируем аккуратный текст, без лишних отступов
+            const adminMessage = `
+👤 <b>Пользователь:</b> ${username}
+🧑 <b>Имя:</b> ${nameFromForm}
+☎️ <b>Телефон:</b> ${phoneFromForm}
+${isDelivery ? `🚚 <b>Способ получения:</b> Доставка\n📍 <b>Адрес:</b> ${addressFromForm}` : `👜 <b>Способ получения:</b> Самовывоз`}
+
+🛒 <b>Заказ:</b>
+${items.join('\n')}
+
+💳 <b>Итого:</b> ${finalTotalPriceString} VND
+`.trim();
+
             const adminChatId = '8175921251'; // ID чата администратора
             console.log("Sending admin message to adminChatId:", adminChatId);
+
             await bot.telegram.sendMessage(adminChatId, adminMessage, {
                 parse_mode: 'HTML',
                 reply_markup: {
@@ -99,6 +155,7 @@ bot.on('message', async (ctx) => {
                     ]]
                 }
             });
+
         } catch (error) {
             console.error('[ERROR] Processing WebApp data:', error.message);
             await ctx.reply('❌ Произошла ошибка при обработке вашего заказа.');
