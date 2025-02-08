@@ -62,34 +62,37 @@ bot.on('message', async (ctx) => {
                 throw new Error('Invalid data: "items" must be an array.');
             }
 
-            // Собираем строки товаров один в один, как на фронте
+            // Собираем строки товаров
             const items = rawData.items.map(item => {
+                // Если тип = 'fish', добавляем слово «Лосось»
                 let displayTitle = item.title;
                 if (item.type === 'fish') {
                     displayTitle = `Лосось ${item.title}`;
                 }
 
+                // Определяем единицы
                 const quantityUnit = unitMapping[item.type] || '';
 
-                // Берём price, если нужен, ИЛИ total, если вам надо другое
-                const itemTotal = Number(item.price).toLocaleString('ru-RU', {
+                // Берём итоговую цену из item.total (т.к. на фронте уже посчитано)
+                const itemTotalNumber = Number(item.total);
+                const itemTotalStr = itemTotalNumber.toLocaleString('ru-RU', {
                     minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
+                    maximumFractionDigits: 2
                 });
 
                 // Декодируем топпинги
                 const decodedToppings = item.toppings?.map(decodeTopping) || [];
                 const toppingsText = decodedToppings.length
-                    ? ` (Топпинки: ${decodedToppings.join(', ')})`
+                    ? ` (Топпинги: ${decodedToppings.join(', ')})`
                     : '';
 
-                return `${displayTitle} — ${item.quantity} ${quantityUnit} — ${itemTotal} VND${toppingsText}`;
+                return `${displayTitle} — ${item.quantity} ${quantityUnit} — ${itemTotalStr} VND${toppingsText}`;
             });
 
             // Общая итоговая стоимость из фронта
             const finalTotalPriceString = Number(rawData.totalPrice).toLocaleString('ru-RU', {
                 minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
+                maximumFractionDigits: 2
             });
 
             // Сообщение пользователю
@@ -150,7 +153,6 @@ ${items.join('\n')}
     }
 });
 
-// ...
 bot.launch().then(() => {
     console.log('Bot is running...');
 });
