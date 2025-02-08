@@ -4,7 +4,23 @@ const TOKEN = '7601273394:AAH3sxGHfD_mUxpBGyaZIx9EraGWAeD8I60';
 const bot = new Telegraf(TOKEN);
 const webLink = 'https://elenasoshina.github.io/tg-shopping/';
 
-// Start Command
+// Такой же mapping, как на фронте
+const unitMapping = {
+    cheese: 'шт',
+    fish: 'г',
+    lemon: 'уп',
+};
+
+// Функция расшифровки ключей топпинга
+function decodeTopping(topping) {
+    switch (topping) {
+        case 'sourCream':       return 'Йогурт';
+        case 'condensedMilk':   return 'Сгущенка';
+        case 'passionFruitJam': return 'Джем из маракуйи';
+        default:                return topping;
+    }
+}
+
 bot.start((ctx) => {
     console.log('started');
     const username = ctx.from.username
@@ -30,7 +46,7 @@ bot.start((ctx) => {
     });
 });
 
-// Обработчик данных из WebApp
+// Обработчик данных
 bot.on('message', async (ctx) => {
     console.log("[DEBUG] Сообщение получено от WebApp:", JSON.stringify(ctx.update, null, 2));
 
@@ -46,64 +62,38 @@ bot.on('message', async (ctx) => {
                 throw new Error('Invalid data: "items" must be an array.');
             }
 
-            // Пересчитываем каждую позицию, формируем красивую строку
-            let totalForAll = 0; // Для итоговой стоимости
-
+            // Собираем строки товаров один в один, как на фронте
             const items = rawData.items.map(item => {
-                // Определяем единицу измерения и название
                 let displayTitle = item.title;
-                let quantityString = `${item.quantity} шт`; // по умолчанию
-
                 if (item.type === 'fish') {
-                    // Для рыбы: «Лосось <название>» и «г»
                     displayTitle = `Лосось ${item.title}`;
-                    quantityString = `${item.quantity} г`;
-                } else if (item.type === 'cheese') {
-                    // Сырники в штуках
-                    quantityString = `${item.quantity} шт`;
-                } else if (item.type === 'lemon') {
-                    // Лимоны в упаковках
-                    quantityString = `${item.quantity} уп`;
                 }
 
-                // Считаем реальную стоимость, игнорируя item.total
-                const priceNum = Number(item.price) || 0; // цена за 1 шт / г / уп
-                const quantityNum = Number(item.quantity) || 0;
-                const itemTotalNum = priceNum * quantityNum;
-                totalForAll += itemTotalNum;
+                const quantityUnit = unitMapping[item.type] || '';
 
-                // Форматируем как «xxx,xxx.00»
-                const itemTotalStr = itemTotalNum.toLocaleString('ru-RU', {
+                // Берём price, если нужен, ИЛИ total, если вам надо другое
+                const itemTotal = Number(item.price).toLocaleString('ru-RU', {
                     minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
+                    maximumFractionDigits: 2,
                 });
 
-                // Топпинги (если есть)
-                const toppings = item.toppings?.length
-                    ? ` (Топпинги: ${item.toppings.map(topping => {
-                        switch (topping) {
-                            case 'sourCream': return 'Сметана';
-                            case 'condensedMilk': return 'Сгущенка';
-                            case 'passionFruitJam': return 'Джем из маракуйи';
-                            default: return 'Неизвестный топпинг';
-                        }
-                    }).join(', ')})`
+                // Декодируем топпинги
+                const decodedToppings = item.toppings?.map(decodeTopping) || [];
+                const toppingsText = decodedToppings.length
+                    ? ` (Топпинки: ${decodedToppings.join(', ')})`
                     : '';
 
-                // Пример строки: «Лосось Нарезка - 300 г - 480 000,00 VND (Топпинги: …)»
-                return `${displayTitle} - ${quantityString} - ${itemTotalStr} VND${toppings}`;
+                return `${displayTitle} — ${item.quantity} ${quantityUnit} — ${itemTotal} VND${toppingsText}`;
             });
 
-            // Форматируем итоговую стоимость
-            const finalTotalPriceString = totalForAll.toLocaleString('ru-RU', {
+            // Общая итоговая стоимость из фронта
+            const finalTotalPriceString = Number(rawData.totalPrice).toLocaleString('ru-RU', {
                 minimumFractionDigits: 2,
-                maximumFractionDigits: 2
+                maximumFractionDigits: 2,
             });
 
             // Сообщение пользователю
             const clientMessage = `🛒 *Ваш заказ:*\n\n${items.join('\n')}\n\n💳 *Итого:* ${finalTotalPriceString} VND`;
-            console.log("Sending message to user chat ID:", ctx.chat.id);
-
             await ctx.reply(clientMessage, {
                 parse_mode: 'Markdown',
                 reply_markup: {
@@ -115,20 +105,19 @@ bot.on('message', async (ctx) => {
                 }
             });
 
-            // --- Сообщение для администратора ---
+            // Сообщение администратору
             const username = ctx.from.username
                 ? `@${ctx.from.username}`
                 : ctx.from.first_name
                     ? ctx.from.first_name
-                    : "неизвестный пользователь";
+                    : 'неизвестный пользователь';
 
-            const nameFromForm = rawData.name || '—';   // Имя пользователя из формы
-            const phoneFromForm = rawData.phone || '—'; // Телефон из формы
+            const nameFromForm = rawData.name || '—';
+            const phoneFromForm = rawData.phone || '—';
             const isDelivery = rawData.deliveryMethod === 'delivery';
             const deliveryMethodText = isDelivery ? 'Доставка' : 'Самовывоз';
             const addressFromForm = isDelivery && rawData.address ? rawData.address : '';
 
-            // Формируем аккуратный текст, без лишних отступов
             const adminMessage = `
 👤 <b>Пользователь:</b> ${username}
 🧑 <b>Имя:</b> ${nameFromForm}
@@ -141,9 +130,7 @@ ${items.join('\n')}
 💳 <b>Итого:</b> ${finalTotalPriceString} VND
 `.trim();
 
-            const adminChatId = '8175921251'; // ID чата администратора
-            console.log("Sending admin message to adminChatId:", adminChatId);
-
+            const adminChatId = '8175921251';
             await bot.telegram.sendMessage(adminChatId, adminMessage, {
                 parse_mode: 'HTML',
                 reply_markup: {
@@ -163,16 +150,7 @@ ${items.join('\n')}
     }
 });
 
-// Обработчик callback_query
-bot.on('callback_query', async (ctx) => {
-    try {
-        await ctx.answerCbQuery();
-    } catch (error) {
-        console.error('[ERROR] Handling callback query:', error.message);
-    }
-});
-
-// Запуск бота
+// ...
 bot.launch().then(() => {
     console.log('Bot is running...');
 });
