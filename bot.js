@@ -38,10 +38,11 @@ bot.start((ctx) => {
     ctx.reply(welcomeMessage, {
         reply_markup: {
             keyboard: [
-                [{ text: 'Открыть меню', web_app: { url: webLink } }]
+                [{ text: '📲 ОФОРМИТЬ ЗАКАЗ', web_app: { url: webLink } }]
             ],
             resize_keyboard: true,
-            one_time_keyboard: false
+            one_time_keyboard: false,
+            is_persistent: true
         }
     });
 });
@@ -134,7 +135,7 @@ ${items.join('\n')}
 💳 <b>Итого:</b> ${finalTotalPriceString} VND
 `.trim();
 
-            const adminChatIds = ['8175921251', '522814078'];
+            const adminChatIds = ['522814078', '242033167'];
             for (const chatId of adminChatIds) {
                 await bot.telegram.sendMessage(chatId, adminMessage, {
                     parse_mode: 'HTML',
