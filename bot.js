@@ -135,7 +135,7 @@ ${items.join('\n')}
 💳 <b>Итого:</b> ${finalTotalPriceString} VND
 `.trim();
 
-            const adminChatIds = ['522814078', '242033167'];
+            const adminChatIds = ['522814078', '242033167', '195828955', '142016761'];
             for (const chatId of adminChatIds) {
                 await bot.telegram.sendMessage(chatId, adminMessage, {
                     parse_mode: 'HTML',
