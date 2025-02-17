@@ -101,10 +101,11 @@ bot.on('message', async (ctx) => {
                 parse_mode: 'Markdown',
                 reply_markup: {
                     keyboard: [
-                        [{ text: 'Открыть меню', web_app: { url: webLink } }]
+                        [{ text: '📲 ОФОРМИТЬ ЗАКАЗ', web_app: { url: webLink } }]
                     ],
                     resize_keyboard: true,
-                    one_time_keyboard: false
+                    one_time_keyboard: false,
+                    is_persistent: true
                 }
             });
 
@@ -133,19 +134,20 @@ ${items.join('\n')}
 💳 <b>Итого:</b> ${finalTotalPriceString} VND
 `.trim();
 
-            const adminChatId = '8175921251';
-            await bot.telegram.sendMessage(adminChatId, adminMessage, {
-                parse_mode: 'HTML',
-                reply_markup: {
-                    inline_keyboard: [[
-                        {
-                            text: 'Написать пользователю',
-                            url: `tg://user?id=${ctx.from.id}`
-                        }
-                    ]]
-                }
-            });
-
+            const adminChatIds = ['8175921251', '522814078'];
+            for (const chatId of adminChatIds) {
+                await bot.telegram.sendMessage(chatId, adminMessage, {
+                    parse_mode: 'HTML',
+                    reply_markup: {
+                        inline_keyboard: [[
+                            {
+                                text: 'Написать пользователю',
+                                url: `tg://user?id=${ctx.from.id}`
+                            }
+                        ]]
+                    }
+                });
+            }
         } catch (error) {
             console.error('[ERROR] Processing WebApp data:', error.message);
             await ctx.reply('❌ Произошла ошибка при обработке вашего заказа.');
