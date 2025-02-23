@@ -151,7 +151,7 @@ ${items.join('\n')}
             }
         } catch (error) {
             console.error('[ERROR] Processing WebApp data:', error.message);
-            await ctx.reply('❌ Произошла ошибка при обработке вашего заказа.');
+            await ctx.reply('❌ Произошла ошибка при обработке вашего заказа. ');
         }
     }
 });
