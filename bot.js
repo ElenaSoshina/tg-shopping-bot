@@ -49,7 +49,7 @@ bot.start((ctx) => {
 
 // Обработчик данных
 bot.on('message', async (ctx) => {
-    console.log("[DEBUG] Сообщение получено от WebApp:", JSON.stringify(ctx.update, null, 2));
+    console.log("[DEBUG] Сообщение получено от WebApp: ", JSON.stringify(ctx.update, null, 2));
 
     if (ctx.update.message?.web_app_data) {
         try {
